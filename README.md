@@ -16,54 +16,7 @@
 - 💻 极致终端体验：基于 `rich` 库构建的实时 HUD 状态面板与高亮文本，提供极佳的沉浸式游玩体验。
 
 
- 🛠️ 安装与运行
-
-```bash
-1. 克隆仓库
-Bash
-git clone https://github.com/CC1E38008/Werewolf-Playmate-Agent.git
-cd Werewolf-Playmate-Agent
-chmod +x Werewolf_Playmate_Agent_Ver_1.py
-"""
-
-```bash
-2. 安装依赖
-建议使用虚拟环境（venv或conda），然后安装必要的 Python 库：
-Bash
-pip install -r requirements.txt
-"""
-
-```bash
-3. 开始游戏
-Bash
-python Werewolf_Playmate_Agent_Ver_1.py
-"""
 
 
-🎮 游玩指南
-配置引擎：运行脚本后，系统会提示输入参与游戏的 LLM 数量。你需要准备好兼容 OpenAI 格式的 API URL 和 API Key（例如 DeepSeek 的 https://api.deepseek.com/v1）。放心，所有的 Key 仅在你的本地内存中运行，不会被上传或保存。
 
-你的身份：你是玩家代号 U，系统会随机为你分配一个身份。
-
-黑夜阶段：根据你的身份执行动作（狼人刀人、女巫救/毒、预言家查验）。如果是 AI 拿到神职或狼人，它们会在后台静默思考并作出决定。
-
-白天阶段：分析局势，通过终端输入你的发言。AI 也会根据历史发言记录进行推理和辩论。
-
-投票处决：票选出你认为的狼人。
-
-📝 日志与数据统计
-游戏过程中的所有胜负结算数据会自动保存在脚本同目录下的 game_results_of_LLM.log 文件中。你可以借此分析哪一款大语言模型是真正的“逻辑大师”或“伪装大师”。
-
-🤝 贡献指南
-欢迎提交 Pull Request 或发布 Issue 来完善这个游戏！你可以尝试：
-
-增加新的角色（如守卫、丘比特、白痴）。
-
-优化 AI 的 System Prompt，让其发言更具“人味”。
-
-
-接入不同的 API 调用方式（如本地部署的 Ollama）。
-
-📄 开源协议
-本项目基于 MIT License 开源。请自由享受代码的乐趣！
 
