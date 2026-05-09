@@ -23,8 +23,10 @@ readme_content = """# 🐺 终端狼人杀：AI 深度觉醒版 (Terminal LLM We
 README.md file created successfully.
 
 
-   git clone [https://github.com/YOUR_USERNAME/Terminal-LLM-Werewolf.git](https://github.com/YOUR_USERNAME/Terminal-LLM-Werewolf.git)
-   cd Terminal-LLM-Werewolf
+git clone https://github.com/CC1E38008/Werewolf-Playmate-Agent.git
+cd Werewolf-Playmate-Agent
+chmod +x Werewolf_Playmate_Agent_Ver_1.py
+
 2. 安装依赖
 建议使用虚拟环境（venv或conda），然后安装必要的 Python 库：
 
