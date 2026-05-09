@@ -39,6 +39,7 @@ Bash
 python Werewolf_Playmate_Agent_Ver_1.py
 """
 
+
 🎮 游玩指南
 配置引擎：运行脚本后，系统会提示输入参与游戏的 LLM 数量。你需要准备好兼容 OpenAI 格式的 API URL 和 API Key（例如 DeepSeek 的 https://api.deepseek.com/v1）。放心，所有的 Key 仅在你的本地内存中运行，不会被上传或保存。
 
@@ -59,6 +60,7 @@ python Werewolf_Playmate_Agent_Ver_1.py
 增加新的角色（如守卫、丘比特、白痴）。
 
 优化 AI 的 System Prompt，让其发言更具“人味”。
+
 
 接入不同的 API 调用方式（如本地部署的 Ollama）。
 
