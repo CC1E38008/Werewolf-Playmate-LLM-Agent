@@ -17,12 +17,12 @@ readme_content = """# 🐺 终端狼人杀：AI 深度觉醒版 (Terminal LLM We
 
 
  🛠️ 安装与运行
-
+```bash
 1. 克隆仓库
 代码输出
 README.md file created successfully.
 
-```bash
+
    git clone [https://github.com/YOUR_USERNAME/Terminal-LLM-Werewolf.git](https://github.com/YOUR_USERNAME/Terminal-LLM-Werewolf.git)
    cd Terminal-LLM-Werewolf
 2. 安装依赖
@@ -36,6 +36,8 @@ pip install -r requirements.txt
 Bash
 
 python Werewolf_Playmate_Agent_Ver_1.py
+"""
+
 🎮 游玩指南
 配置引擎：运行脚本后，系统会提示输入参与游戏的 LLM 数量。你需要准备好兼容 OpenAI 格式的 API URL 和 API Key（例如 DeepSeek 的 https://api.deepseek.com/v1）。放心，所有的 Key 仅在你的本地内存中运行，不会被上传或保存。
 
@@ -61,4 +63,4 @@ python Werewolf_Playmate_Agent_Ver_1.py
 
 📄 开源协议
 本项目基于 MIT License 开源。请自由享受代码的乐趣！
-"""
+
