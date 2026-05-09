@@ -6,6 +6,9 @@
 
 这是一个基于终端的纯文本狼人杀游戏，由人类玩家与多个大语言模型（LLM）共同参与。本项目利用深度定制的 System Prompt，赋予 AI 真实的隐藏身份、视野以及逻辑推理能力，让 LLM 可以在游戏中“思考、伪装、撒谎甚至背叛”。
 
+<img width="610" height="461" alt="e537d14ee261500d96a980f5dd9c7e38" src="https://github.com/user-attachments/assets/f312cf9e-161a-4041-b6af-e797df667875" />
+
+
  ✨ 核心特性
 
 - 🤖 多模型混合竞技：支持同时接入最多 8 个不同的 LLM（兼容 OpenAI API 格式，如 DeepSeek、ChatGPT 等），你可以观察不同模型在欺诈与逻辑推理上的能力差异。
