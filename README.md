@@ -47,22 +47,22 @@
 
 ```bash
 1. 克隆仓库
-Bash
+
 git clone https://github.com/CC1E38008/Werewolf-Playmate-Agent.git
 cd Werewolf-Playmate-Agent
 chmod +x Werewolf_Playmate_Agent_Ver_1.py
-"""
 
-```bash
+
+
 2. 安装依赖
 建议使用虚拟环境（venv或conda），然后安装必要的 Python 库：
 Bash
 pip install -r requirements.txt
-"""
 
-```bash
+
+
 3. 开始游戏
 Bash
 python Werewolf_Playmate_Agent_Ver_1.py
-"""
+
 
