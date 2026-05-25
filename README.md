@@ -47,8 +47,8 @@
 
 ```bash
 1. 克隆仓库
-git clone https://github.com/CC1E38008/Werewolf-Playmate-Agent.git
-cd Werewolf-Playmate-Agent
+git clone https://github.com/CC1E38008/Werewolf-Playmate-LLM-Agent.git
+cd Werewolf-Playmate-LLM-Agent
 chmod +x Werewolf_Playmate_Agent_Ver_5.py
 
 2. 安装依赖
