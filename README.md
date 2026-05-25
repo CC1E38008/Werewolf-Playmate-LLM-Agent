@@ -1,5 +1,5 @@
 
-# 🐺 LLM Chat狼人杀：AI 深度觉醒版 (LLM Agent Werewolf)
+# 🐺 LLM Chat 狼人杀桌游 Agent：人工智能深度觉醒对战版 (LLM Agent Werewolf CLI Version)
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-green.svg)
