@@ -6,6 +6,11 @@
 
 这是一个基于终端的纯文本狼人杀游戏，由人类玩家与多个大语言模型（LLM）共同参与。本项目利用深度定制的 System Prompt，赋予 AI 真实的隐藏身份、视野以及逻辑推理能力，让 LLM 可以在游戏中“思考、伪装、撒谎甚至背叛”。
 
+<img width="1113" height="626" alt="1abc91780ddf23deedb8b20933183b57" src="https://github.com/user-attachments/assets/de708f58-c6dd-4f37-8d0c-3cdd2a772d0c" />
+
+<img width="1101" height="237" alt="572ad24dfd1991835fa924a196fae333" src="https://github.com/user-attachments/assets/2572da54-e005-4af8-adeb-f561608a7275" />
+
+
 <img width="610" height="461" alt="e537d14ee261500d96a980f5dd9c7e38" src="https://github.com/user-attachments/assets/f312cf9e-161a-4041-b6af-e797df667875" />
 
 
