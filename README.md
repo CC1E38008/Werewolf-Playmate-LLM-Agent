@@ -10,14 +10,6 @@
 
 <img width="1101" height="237" alt="572ad24dfd1991835fa924a196fae333" src="https://github.com/user-attachments/assets/2572da54-e005-4af8-adeb-f561608a7275" />
 
-
-<img width="610" height="461" alt="e537d14ee261500d96a980f5dd9c7e38" src="https://github.com/user-attachments/assets/f312cf9e-161a-4041-b6af-e797df667875" />
-
-
-
-
-
-
  ✨ 核心特性
 
 - 🤖 多模型混合竞技：支持同时接入最多 8 个不同的 LLM（兼容 OpenAI API 格式，如 DeepSeek、ChatGPT 等），你可以观察不同模型在欺诈与逻辑推理上的能力差异。
