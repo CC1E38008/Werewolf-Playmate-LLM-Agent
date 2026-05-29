@@ -1,13 +1,14 @@
 """
 ============================================================
-🐺 终端狼人杀：AI 深度觉醒版 v5.0 — 稳定发布版
+🐺 终端狼人杀：AI 深度觉醒版 v6.0 — 警长竞选版
 ============================================================
-v4 → v5 关键修复 (2项):
-  [FIX1] LLM分配算法 — Counter key 从 model_name 改为唯一 idx，同名模型不再共享计数器
-  [FIX2] min_count 计算 — 改为对所有 LLM 取最小，防止首轮后候选列表退化为单一 LLM
-  保留 v4 全部 UI 升级 (10项沉浸式特性):
-    玩家配色+emoji | 投票柱状图 | 夜晚分段 | 死亡播报 | 发言气泡
-    观战模式/快进 | ASCII艺术 | 赛前动画 | 命令系统 | 历史回放
+v5 → v6 新增: 🎖️ 警长竞选机制
+  [警长竞选] 上警声明 → 竞选发言(随机顺序) → 退水 → 在警下投票
+  [AI策略]   各角色差异化上警策略 (预言家必上警/狼人悍跳/平民挡刀/神职带队)
+  [归票权]   警长在白天发言环节最后发言，拥有总结归票权
+  [1.5票]    警长投票按 1.5 票计算，可打破平票僵局
+  [警徽流]   警长死亡时传递警徽，可公开传递信息 (预言家关键技能)
+  [完整继承] 保留 v5 全部修复 + v4 全部 UI
 """
 
 import os
@@ -173,7 +174,7 @@ def truncate_history(history: list, max_entries: int = 50) -> list:
 
 # ═══════════════════════════════════════════════════
 class WerewolfGame:
-    """狼人杀游戏主类 (v5.0 稳定发布版)"""
+    """狼人杀游戏主类 (v6.0 警长竞选版)"""
 
     def __init__(self):
         self.alive_players = PLAYERS.copy()
@@ -191,6 +192,291 @@ class WerewolfGame:
         self.day_number = 0
         self.human_alive = True
         self.fast_forward = False  # 观战快进模式
+        self.sheriff = None            # 当前警长 (玩家代号 或 None)
+        self.sheriff_election_done = False
+        self.night_zero_done = False   # 第0夜是否已完成
+        self.first_death_spoken = False  # 首夜死者遗言是否已触发
+
+    # ═══════════════════════════════════════════════
+    # 🌙 第0夜 — 预言家单独查验（无狼刀/无女巫）
+    # ═══════════════════════════════════════════════
+    def night_zero(self):
+        """第0夜: 仅预言家查验，不杀人、不用药。为警长竞选提供信息基础。"""
+        self.night_zero_done = True
+        console.print()
+        console.print(Panel(
+            "[bold blue]🌙 第 0 夜 — 预言家单独查验[/bold blue]\n"
+            "[dim]仅预言家行动，无狼刀，无女巫技能[/dim]",
+            border_style="blue"
+        ))
+
+        seers = [p for p in self.alive_players if self.player_roles[p] == "预言家"]
+        if not seers:
+            console.print("[dim]无存活的预言家。[/dim]")
+            return
+
+        s = seers[0]
+        check_targets = [p for p in self.alive_players if p != s]
+
+        if s == "U":
+            check = self._human_input(
+                "[预言家] 第0夜免费查验，你要查验谁？",
+                choices=check_targets
+            )
+            res = "🐺 狼人" if self.player_roles[check] == "狼人" else "👨‍🌾 好人"
+            console.print(Panel(
+                f"{get_player_label(check)} 的身份是：[bold]{res}[/bold]",
+                border_style="cyan",
+                title="🔮 查验结果"
+            ))
+            self.seer_vision.append(f"{check}({res})")
+        else:
+            sys_prompt = "第0夜，你可以查验一名玩家。格式: [TARGET: 代号]"
+            ai_check = self._call_llm(
+                s, sys_prompt,
+                f"可选目标: {check_targets}",
+                require_target=True,
+                valid_targets=check_targets,
+                hide_identity=True
+            )
+            if ai_check and ai_check in check_targets:
+                res = "狼人" if self.player_roles.get(ai_check) == "狼人" else "好人"
+                self.ai_seer_vision[s].append(f"{ai_check} 是 {res}")
+            else:
+                fallback = random.choice(check_targets)
+                res = "狼人" if self.player_roles.get(fallback) == "狼人" else "好人"
+                self.ai_seer_vision[s].append(f"{fallback} 是 {res}")
+
+        time.sleep(1.0)
+        console.print("[dim]第0夜结束，进入警长竞选...[/dim]\n")
+        time.sleep(0.5)
+
+    # ═══════════════════════════════════════════════
+    # 🎖️ 警长竞选
+    # ═══════════════════════════════════════════════
+    def sheriff_election(self):
+        """警长竞选 — 上警/发言/退水/投票"""
+        console.print()
+        console.print(Panel(
+            "[bold yellow]🎖️ 警长竞选环节 🎖️[/bold yellow]\n"
+            "[dim]上警玩家发表竞选演说 → 退水 → 在警下玩家投票选出警长[/dim]",
+            border_style="yellow"
+        ))
+        self.history.append("\n=== 警长竞选 ===")
+        self.display_hud()
+
+        # ═══════════════════════════════════════════
+        # Phase 1: 上警 / 在警下 声明
+        # ═══════════════════════════════════════════
+        console.print("\n[bold]📋 第一阶段: 上警声明[/bold]")
+        candidates = []
+        voters = []
+
+        for p in self.alive_players:
+            if p == "U":
+                choice = self._human_input(
+                    f"{get_player_label('U')} 是否上警竞选警长？(Y/N)",
+                    choices=["Y", "N"]
+                )
+            else:
+                role = self.player_roles[p]
+                if role == "预言家":
+                    hint = "你作为预言家，必须上警抢夺警徽打出警徽流，否则狼人拿警徽好人大劣。建议上警。"
+                elif role == "狼人":
+                    hint = "你可以选择上警悍跳预言家抢夺警徽，或在警下投票支持队友。策略自定。"
+                elif role == "平民":
+                    hint = "你可以上警为预言家挡刀或分析局势，或在警下投票。策略自定。"
+                elif role == "女巫":
+                    hint = "你有双药在手，可以上警分享信息，或在警下隐藏身份。策略自定。"
+                elif role == "猎人":
+                    hint = "你可以上警带队分析，或在警下隐藏身份。策略自定。"
+                else:
+                    hint = "请根据你的角色和阵营决定是否上警。"
+
+                sys_prompt = (
+                    f"现在是警长竞选环节。{hint}\n"
+                    f"回复格式：[TARGET: Y] 表示上警，[TARGET: N] 表示在警下。"
+                )
+                choice = self._call_llm(
+                    p, sys_prompt,
+                    "是否上警竞选警长？",
+                    require_target=True,
+                    valid_targets=["Y", "N"],
+                    hide_identity=True
+                )
+
+            label = get_player_label(p)
+            if choice == "Y":
+                candidates.append(p)
+                console.print(f"  {label} → [bold yellow]🎖️ 上警[/bold yellow]")
+                self.history.append(f"【上警】 {p} 参加警长竞选")
+            else:
+                voters.append(p)
+                console.print(f"  {label} → [dim]在警下[/dim]")
+                self.history.append(f"【上警】 {p} 在警下")
+
+        # Edge case: 无人上警
+        if not candidates:
+            console.print(Panel(
+                "[dim]无人上警，本轮无警长。[/dim]",
+                border_style="grey50"
+            ))
+            self.history.append("【系统】无人上警，无警长产生。")
+            self.sheriff_election_done = True
+            return
+
+        # Edge case: 仅1人上警 → 自动当选
+        if len(candidates) == 1:
+            self.sheriff = candidates[0]
+            console.print(Panel(
+                f"🎖️ {get_player_label(candidates[0])} 是唯一候选人，自动当选警长！",
+                border_style="yellow"
+            ))
+            self.history.append(f"【系统】{candidates[0]} 自动当选警长。")
+            self.sheriff_election_done = True
+            return
+
+        # ═══════════════════════════════════════════
+        # Phase 2: 竞选发言 (随机顺序)
+        # ═══════════════════════════════════════════
+        console.print(f"\n[bold]🗣️ 第二阶段: 竞选发言 ({len(candidates)}人)[/bold]")
+        random.shuffle(candidates)
+
+        for p in candidates:
+            console.print()
+            if p == "U":
+                speech = self._human_input(
+                    f"🎤 你的竞选发言 ({get_player_label('U')})",
+                    allow_commands=False
+                )
+            else:
+                role = self.player_roles[p]
+                if role == "预言家":
+                    hint = "报出你的查验信息和警徽流。"
+                elif role == "狼人":
+                    hint = "悍跳预言家，报出虚假查验和警徽流，抢夺警徽。"
+                else:
+                    hint = "分析局势，说明你为何适合当警长。"
+                sys_prompt = (
+                    f"现在是竞选发言环节。{hint}\n"
+                    f"你的发言应该说服在警下的玩家投票给你。注意伪装和策略。"
+                )
+                speech = self._call_llm(p, sys_prompt, "请发表你的竞选演说:")
+
+            bubble = self._speech_bubble(p, speech)
+            bubble.title = f"🎤 {get_player_label(p)} [竞选发言]"
+            console.print(bubble)
+            self.history.append(f"【竞选发言】 {p}: {speech}")
+            time.sleep(0.5)
+
+        # ═══════════════════════════════════════════
+        # Phase 3: 退水
+        # ═══════════════════════════════════════════
+        console.print(f"\n[bold]💧 第三阶段: 退水声明[/bold]")
+        withdrew = []
+        for p in candidates[:]:  # iterate copy
+            if p == "U":
+                if self._human_input(
+                    f"{get_player_label('U')} 是否退水？(Y/N)",
+                    choices=["Y", "N"]
+                ) == "Y":
+                    candidates.remove(p)
+                    withdrew.append(p)
+                    console.print(f"  {get_player_label(p)} → [dim]退水[/dim]")
+            else:
+                sys_prompt = (
+                    "听完了所有候选人的发言。根据局势判断，你是否要退水（退出竞选）？"
+                    "回复格式：[TARGET: Y] 或 [TARGET: N]"
+                )
+                choice = self._call_llm(
+                    p, sys_prompt,
+                    "是否退水？",
+                    require_target=True,
+                    valid_targets=["Y", "N"]
+                )
+                if choice == "Y":
+                    candidates.remove(p)
+                    withdrew.append(p)
+                    console.print(f"  {get_player_label(p)} → [dim]退水[/dim]")
+            time.sleep(0.2)
+
+        if withdrew:
+            self.history.append(f"【退水】 {', '.join(withdrew)} 退出竞选。")
+
+        if not candidates:
+            console.print(Panel(
+                "[dim]所有候选人退水，本轮无警长。[/dim]",
+                border_style="grey50"
+            ))
+            self.history.append("【系统】所有候选人退水，无警长产生。")
+            self.sheriff_election_done = True
+            return
+
+        if len(candidates) == 1:
+            self.sheriff = candidates[0]
+            console.print(Panel(
+                f"🎖️ 其他候选人退水，{get_player_label(candidates[0])} 自动当选警长！",
+                border_style="yellow"
+            ))
+            self.history.append(f"【系统】{candidates[0]} 经退水后自动当选警长。")
+            self.sheriff_election_done = True
+            return
+
+        # ═══════════════════════════════════════════
+        # Phase 4: 投票
+        # ═══════════════════════════════════════════
+        console.print(f"\n[bold]🗳️ 第四阶段: 警长投票[/bold]")
+        console.print(f"候选人: {', '.join([get_player_label(c) for c in candidates])}")
+
+        # 如果所有玩家都上警且无人退水 → 全体投票
+        if not voters:
+            voters = [p for p in self.alive_players]
+            console.print("[dim]全员上警，所有玩家参与投票。[/dim]")
+
+        election_votes = {c: 0 for c in candidates}
+        for v in voters:
+            if v == "U":
+                vote = self._human_input(
+                    f"{get_player_label('U')} 投票给谁？",
+                    choices=candidates
+                )
+            else:
+                sys_prompt = (
+                    "请投票给最适合当警长的候选人。考虑发言内容和阵营利益。"
+                    "格式: [TARGET: 代号]"
+                )
+                vote = self._call_llm(
+                    v, sys_prompt,
+                    f"候选人: {candidates}",
+                    require_target=True,
+                    valid_targets=candidates
+                )
+            election_votes[vote] += 1
+            console.print(f"  {get_player_label(v)} → {get_player_label(vote)}")
+            self.history.append(f"【警长投票】 {v} 投给了 {vote}")
+            time.sleep(0.2)
+
+        # ── 结果 ──
+        max_v = max(election_votes.values())
+        winners = [c for c, v in election_votes.items() if v == max_v]
+
+        if len(winners) == 1:
+            self.sheriff = winners[0]
+            console.print(Panel(
+                f"🎖️ [bold yellow]{get_player_label(winners[0])} 当选警长！[/bold yellow]\n"
+                f"[dim]得票: {max_v} 票 | 特权: 归票权 + 1.5票 + 警徽流[/dim]",
+                border_style="yellow"
+            ))
+            self.history.append(f"【系统】{winners[0]} 以 {max_v} 票当选警长。")
+        else:
+            # 平票 → 无人当选（简化处理）
+            console.print(Panel(
+                f"[dim]平票 ({max_v}票)，无人当选警长。[/dim]",
+                border_style="grey50"
+            ))
+            self.history.append(f"【系统】警长投票平票，无警长产生。")
+
+        self.sheriff_election_done = True
 
     # ═══════════════════════════════════════════════
     # 🎨 UI 工具方法
@@ -220,7 +506,8 @@ class WerewolfGame:
             bar = "█" * bar_len + "░" * (bar_width - bar_len)
             marker = "🎯 被放逐" if player == executed else ""
             label = get_player_label(player)
-            table.add_row(label, str(count), bar, marker)
+            count_str = f"{count:.1f}" if count != int(count) else str(int(count))
+            table.add_row(label, count_str, bar, marker)
 
         console.print(table)
 
@@ -414,7 +701,7 @@ class WerewolfGame:
 
     def setup(self):
         console.print(Panel.fit(
-            "[bold yellow]🐺 终端狼人杀 v5.0 — 稳定发布版 🐺[/bold yellow]\n"
+            "[bold yellow]🐺 终端狼人杀 v6.0 — 警长竞选版 🐺[/bold yellow]\n"
             "[dim]AI 深度觉醒 | 玩家专属配色 | 发言气泡 | 投票可视化 | 观战模式[/dim]",
             border_style="red"
         ))
@@ -519,6 +806,11 @@ class WerewolfGame:
                 f"毒药: {'[green]✓ 可用[/green]' if not self.witch_poison_used else '[red]✕ 已用[/red]'}[/magenta]"
             )
 
+        # ── 警长 ──
+        sheriff_info = ""
+        if self.sheriff:
+            sheriff_info = f"\n🎖️ 警长: {get_player_label(self.sheriff)}  |  特权: 归票权 + 1.5票 + 警徽流"
+
         # ── 玩家配色图例 ──
         legend_parts = [get_player_label(p) for p in self.alive_players]
         dead_parts = [f"[dim]{get_player_label(p)}[/dim]" for p in PLAYERS if p not in self.alive_players]
@@ -529,7 +821,7 @@ class WerewolfGame:
             f"[bold cyan]═══ 游戏全局信息 ═══[/bold cyan]\n"
             f"代号: {get_player_label('U')}  |  角色: [bold yellow]{role} {role_emoji}[/bold yellow]  |  {is_alive}\n"
             f"存活: {alive_list}\n"
-            f"视野: {vision_text}\n\n"
+            f"视野: {vision_text}{sheriff_info}\n\n"
             f"[bold cyan]═══ 玩家图例 ═══[/bold cyan]\n{legend}"
         )
         console.print(Panel(
@@ -673,6 +965,39 @@ class WerewolfGame:
 
         self.alive_players.remove(p)
 
+        # ── 💬 遗言判定 ──
+        # 标准规则: 首夜狼杀有遗言 + 白天被投票放逐有遗言
+        # 被毒杀、被猎人带走、系统强制放逐 → 无遗言
+        allow_last_words = False
+        if cause == "wolf" and not self.first_death_spoken:
+            allow_last_words = True
+            self.first_death_spoken = True
+        elif cause == "vote":
+            allow_last_words = True
+
+        if allow_last_words:
+            label = get_player_label(p)
+            console.print(Panel(
+                f"💬 [bold yellow]遗言环节 — {label}[/bold yellow]",
+                border_style="yellow"
+            ))
+            if p == "U":
+                last_speech = self._human_input(
+                    "📝 请留下遗言:",
+                    allow_commands=False
+                )
+            else:
+                sys_prompt = (
+                    "你即将死亡，这是你最后的发言机会。请留下遗言。"
+                    "你可以揭露信息、指认狼人、或给队友提示。"
+                    "不要暴露你作为AI的身份。"
+                )
+                last_speech = self._call_llm(p, sys_prompt, "请说出你的遗言:")
+            bubble = self._speech_bubble(p, last_speech)
+            bubble.title = f"💬 {label} [遗言]"
+            console.print(bubble)
+            self.history.append(f"【遗言】 {p}: {last_speech}")
+
         # ── 戏剧化死亡播报 ──
         self._show_death_reveal(p, cause)
 
@@ -689,14 +1014,43 @@ class WerewolfGame:
 
         if p == "U":
             self.human_alive = False
-            # 死后提示快进模式
             if Prompt.ask(
                 "\n⚡ 是否开启快进模式？(Y/N)",
                 choices=["Y", "N"],
                 default="N"
             ) == "Y":
                 self.fast_forward = True
-                console.print("[green]✓ 快进模式已开启，将自动跳过 AI 思考等待[/green]\n")
+                console.print("[green]✓ 快进模式已开启[/green]\n")
+
+        # ── 🎖️ 警徽流：警长死亡时传递警徽 ──
+        if self.sheriff == p:
+            console.print(f"\n🎖️ [bold yellow]警长 {get_player_label(p)} 死亡！传递警徽...[/bold yellow]")
+            others = [t for t in self.alive_players]
+            if others:
+                if p == "U":
+                    heir = self._human_input(
+                        "🎖️ 警徽传给谁？(输入代号)",
+                        choices=others
+                    )
+                else:
+                    sys_prompt = (
+                        "你是警长，即将死亡。请选择一位玩家传递警徽。\n"
+                        "警徽传递会公开信息——如果你是预言家，传警徽可以暗示你的查验结果。\n"
+                        "回复格式：[TARGET: 代号]"
+                    )
+                    heir = self._call_llm(
+                        p, sys_prompt,
+                        f"可选对象: {others}",
+                        require_target=True,
+                        valid_targets=others
+                    )
+                self.sheriff = heir
+                console.print(f"🎖️ 警徽已传给 {get_player_label(heir)}！")
+                self.history.append(f"【系统】警徽从 {p} 传给 {heir}。")
+            else:
+                self.sheriff = None
+                console.print("[dim]无存活玩家可传递警徽。[/dim]")
+                self.history.append("【系统】警徽无人可传，收回。")
 
         # ── 猎人开枪 ──
         if self.player_roles[p] == "猎人":
@@ -733,10 +1087,34 @@ class WerewolfGame:
 
             if shot != "Pass" and shot in self.alive_players:
                 console.print(f"🎯 猎人一枪带走了 {get_player_label(shot)}！")
-                self.history.append(f"【系统】猎人 {p} 开枪带走了 {shot}！")
+                # ── 🔧 修复: 猎人弹道死亡播报 ──
+                self._show_death_reveal(shot, "hunter")
+                self.history.append(
+                    f"【系统】猎人 {p} 开枪带走了 {shot}"
+                    f"（身份：{self.player_roles[shot]}）。"
+                )
                 self.alive_players.remove(shot)
                 if shot == "U":
                     self.human_alive = False
+
+                # ── 🔧 修复: 猎人带走警长 → 警徽随机传递 ──
+                if self.sheriff == shot:
+                    remaining = [t for t in self.alive_players]
+                    if remaining:
+                        heir = random.choice(remaining)
+                        self.sheriff = heir
+                        console.print(
+                            f"🎖️ 被带走的警长无法指定继承人，"
+                            f"警徽随机传给 {get_player_label(heir)}"
+                        )
+                        self.history.append(
+                            f"【系统】警长 {shot} 被猎人带走，"
+                            f"警徽随机传给 {heir}。"
+                        )
+                    else:
+                        self.sheriff = None
+                        console.print("[dim]警徽无人可传，收回。[/dim]")
+                        self.history.append("【系统】警徽无人可传，收回。")
 
     # ═══════════════════════════════════════════════
     # 夜晚阶段
@@ -995,6 +1373,11 @@ class WerewolfGame:
             self.alive_players, len(self.alive_players)
         )
 
+        # ── 警长归票权：警长最后发言 ──
+        if self.sheriff and self.sheriff in shuffled_players:
+            shuffled_players.remove(self.sheriff)
+            shuffled_players.append(self.sheriff)
+
         # 显示发言顺序
         order_text = " → ".join([get_player_label(p) for p in shuffled_players])
         console.print(f"[dim]发言顺序: {order_text}[/dim]\n")
@@ -1054,8 +1437,11 @@ class WerewolfGame:
                 )
 
             if v != "Pass" and v in votes:
-                votes[v] += 1
-                console.print(f"  {get_player_label(p)} → {get_player_label(v)}")
+                # ── 警长 1.5 票特权 ──
+                vote_weight = 1.5 if (self.sheriff and p == self.sheriff) else 1.0
+                votes[v] += vote_weight
+                weight_label = " [1.5票]" if vote_weight == 1.5 else ""
+                console.print(f"  {get_player_label(p)} → {get_player_label(v)}{weight_label}")
             else:
                 console.print(f"  {get_player_label(p)} → [dim]弃权[/dim]")
 
@@ -1225,6 +1611,12 @@ class WerewolfGame:
     # ═══════════════════════════════════════════════
     def run(self):
         self.setup()
+
+        # ── 🌙 第0夜：预言家单独查验 ──
+        self.night_zero()
+
+        # ── 🎖️ 警长竞选（预言家已有验人信息） ──
+        self.sheriff_election()
 
         while not self.winner:
             # ── 夜晚 ──
