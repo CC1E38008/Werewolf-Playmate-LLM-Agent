@@ -1,6 +1,6 @@
 """
 ============================================================
-🐺 终端狼人杀：AI 深度觉醒版 v6.0 — 警长竞选版
+🐺 终端狼人杀：AI 深度觉醒版 v7.0 — 警长竞选版
 ============================================================
 v5 → v6 新增: 🎖️ 警长竞选机制
   [警长竞选] 上警声明 → 竞选发言(随机顺序) → 退水 → 在警下投票
@@ -79,7 +79,7 @@ PLAYER_EMOJIS = {
 }
 ROLE_EMOJIS = {
     "狼人": "🐺",
-    "平民": "👨‍🌾",
+    "平民": "🌾",
     "女巫": "🧪",
     "猎人": "🔫",
     "预言家": "🔮",
@@ -223,7 +223,7 @@ class WerewolfGame:
                 "[预言家] 第0夜免费查验，你要查验谁？",
                 choices=check_targets
             )
-            res = "🐺 狼人" if self.player_roles[check] == "狼人" else "👨‍🌾 好人"
+            res = "🐺 狼人" if self.player_roles[check] == "狼人" else "🌾 好人"
             console.print(Panel(
                 f"{get_player_label(check)} 的身份是：[bold]{res}[/bold]",
                 border_style="cyan",
@@ -1201,7 +1201,7 @@ class WerewolfGame:
                     "你要查验谁？",
                     choices=fresh_targets
                 )
-                res = "🐺 狼人" if self.player_roles[check] == "狼人" else "👨‍🌾 好人"
+                res = "🐺 狼人" if self.player_roles[check] == "狼人" else "🌾 好人"
                 console.print(Panel(
                     f"{get_player_label(check)} 的身份是：[bold]{res}[/bold]",
                     border_style="cyan",
@@ -1514,10 +1514,10 @@ class WerewolfGame:
                 model_stats[m_name]["survive"] += 1
 
         stats_table = Table(title="📈 大模型表现统计")
-        stats_table.add_column("模型名称", style="cyan")
-        stats_table.add_column("出场", style="white")
-        stats_table.add_column("胜率", style="yellow")
-        stats_table.add_column("存活率", style="green")
+        stats_table.add_column("模型名称", style="cyan", min_width=28, max_width=40)
+        stats_table.add_column("出场", style="white", justify="center")
+        stats_table.add_column("胜率", style="yellow", justify="right", min_width=8)
+        stats_table.add_column("存活率", style="green", justify="right", min_width=8)
 
         try:
             logging.info("=== 新的对局结束 ===")
@@ -1646,10 +1646,10 @@ class WerewolfGame:
 
         # 结果表
         res_table = Table(title="📋 玩家大揭秘")
-        res_table.add_column("玩家", style="cyan")
-        res_table.add_column("身份", style="yellow")
-        res_table.add_column("LLM 引擎", style="magenta")
-        res_table.add_column("结局", style="green")
+        res_table.add_column("玩家", style="cyan", min_width=10, max_width=12)
+        res_table.add_column("身份", style="yellow", min_width=10, max_width=12)
+        res_table.add_column("LLM 引擎", style="magenta", min_width=28, max_width=40)
+        res_table.add_column("结局", style="green", min_width=12, max_width=16)
 
         for p in PLAYERS:
             label = get_player_label(p)
