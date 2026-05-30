@@ -49,13 +49,13 @@
 1. 克隆仓库
 git clone https://github.com/CC1E38008/Werewolf-Playmate-LLM-Agent.git
 cd Werewolf-Playmate-LLM-Agent
-chmod +x Werewolf_Playmate_Agent_Ver_5.py
+chmod +x Werewolf_Playmate_Agent_Ver_7.7.py
 
 2. 安装依赖
 建议使用虚拟环境（venv或conda），然后安装必要的 Python 库：
 pip install -r requirements.txt
 
 3. 开始游戏
-python Werewolf_Playmate_Agent_Ver_5.py
+python Werewolf_Playmate_Agent_Ver_7.2.py
 
 
