@@ -1,12 +1,13 @@
 """
 ============================================================
-🐺 终端狼人杀：AI 深度觉醒版 v7.1 — 正式发布版
+🐺 终端狼人杀：AI 深度觉醒版 v7.2 — 正式发布版
 ============================================================
-v6 → v7.1 关键优化:
-  [信息遮蔽] 夜间行动 + 第0夜仅向对应角色展示，平民/猎人/其他角色不可见
-  [UI稳定]   ZWJ复合emoji替换 + 结算表min_width/max_width固定列宽
-  [完整机制] 警长竞选(四阶段) | 归票权 | 1.5票 | 警徽流 | 遗言 | 第0夜
-  [全角色验证] 狼人/预言家/女巫/猎人/平民 四视角全流程模拟零问题
+v7.1 → v7.2:
+  [身份隐藏] 仅猎人出局(非毒)亮身份证明开枪权，其余死因一律隐藏身份
+  [发言tokens] 技能调用 max_tokens=300，发言/遗言/竞选 600
+  [完整机制] 警长竞选 | 归票权 | 1.5票 | 警徽流 | 遗言 | 第0夜 | 夜间遮蔽
+  [全角色验证] 狼人/预言家/女巫/猎人/平民 五视角零问题
+  [UI稳定]   emoji兼容 | 结算表定宽 | 发言气泡
 """
 
 import os
@@ -172,7 +173,7 @@ def truncate_history(history: list, max_entries: int = 50) -> list:
 
 # ═══════════════════════════════════════════════════
 class WerewolfGame:
-    """狼人杀游戏主类 (v7.1 正式发布版)"""
+    """狼人杀游戏主类 (v7.2 正式发布版)"""
 
     def __init__(self):
         self.alive_players = PLAYERS.copy()
@@ -247,7 +248,8 @@ class WerewolfGame:
                 f"可选目标: {check_targets}",
                 require_target=True,
                 valid_targets=check_targets,
-                hide_identity=True
+                hide_identity=True,
+                max_tokens=300
             )
             if ai_check and ai_check in check_targets:
                 res = "狼人" if self.player_roles.get(ai_check) == "狼人" else "好人"
@@ -315,7 +317,8 @@ class WerewolfGame:
                     "是否上警竞选警长？",
                     require_target=True,
                     valid_targets=["Y", "N"],
-                    hide_identity=True
+                    hide_identity=True,
+                    max_tokens=300
                 )
 
             label = get_player_label(p)
@@ -405,7 +408,8 @@ class WerewolfGame:
                     p, sys_prompt,
                     "是否退水？",
                     require_target=True,
-                    valid_targets=["Y", "N"]
+                    valid_targets=["Y", "N"],
+                    max_tokens=300
                 )
                 if choice == "Y":
                     candidates.remove(p)
@@ -462,7 +466,8 @@ class WerewolfGame:
                     v, sys_prompt,
                     f"候选人: {candidates}",
                     require_target=True,
-                    valid_targets=candidates
+                    valid_targets=candidates,
+                    max_tokens=300
                 )
             election_votes[vote] += 1
             console.print(f"  {get_player_label(v)} → {get_player_label(vote)}")
@@ -559,8 +564,8 @@ class WerewolfGame:
             alive_table.add_row(label)
         console.print(alive_table)
 
-    def _show_death_reveal(self, player: str, cause: str):
-        """戏剧化死亡播报 + 身份揭晓"""
+    def _show_death_reveal(self, player: str, cause: str, reveal_role: bool = False):
+        """死亡播报。reveal_role=True 时揭晓身份（仅猎人开枪），否则身份未知。"""
         role = self.player_roles.get(player, "???")
         emoji = get_role_emoji(role)
         label = get_player_label(player)
@@ -575,11 +580,18 @@ class WerewolfGame:
         }
         cause_text = cause_texts.get(cause, "死亡")
 
+        if reveal_role:
+            identity_line = f"{emoji} 身份揭晓：[bold yellow]{role}[/bold yellow]"
+            border = "yellow"
+        else:
+            identity_line = "[dim]身份未知[/dim]"
+            border = "red"
+
         console.print(Panel(
             f"{label}\n"
             f"💀 [bold red]{cause_text}[/bold red]\n"
-            f"{emoji} 身份揭晓：[bold yellow]{role}[/bold yellow]",
-            border_style="red",
+            f"{identity_line}",
+            border_style=border,
             padding=(1, 2)
         ))
 
@@ -714,7 +726,7 @@ class WerewolfGame:
 
     def setup(self):
         console.print(Panel.fit(
-            "[bold yellow]🐺 终端狼人杀 v7.1 — 正式发布版 🐺[/bold yellow]\n"
+            "[bold yellow]🐺 终端狼人杀 v7.2 — 正式发布版 🐺[/bold yellow]\n"
             "[dim]AI 深度觉醒 | 玩家专属配色 | 发言气泡 | 投票可视化 | 观战模式[/dim]",
             border_style="red"
         ))
@@ -849,7 +861,8 @@ class WerewolfGame:
     def _call_llm(
         self, player: str, system_prompt: str, user_prompt: str,
         require_target: bool = False, valid_targets: list = None,
-        hide_identity: bool = False, timeout: int = 120
+        hide_identity: bool = False, timeout: int = 120,
+        max_tokens: int = 600
     ):
         config = self.ai_llm_configs[player]
         client = OpenAI(api_key=config["key"], base_url=config["url"])
@@ -913,7 +926,7 @@ class WerewolfGame:
                         {"role": "user", "content": full_user_prompt}
                     ],
                     temperature=0.8,
-                    max_tokens=300,
+                    max_tokens=max_tokens,
                     timeout=timeout
                 )
 
@@ -1011,8 +1024,13 @@ class WerewolfGame:
             console.print(bubble)
             self.history.append(f"【遗言】 {p}: {last_speech}")
 
-        # ── 戏剧化死亡播报 ──
-        self._show_death_reveal(p, cause)
+        # ── 判定是否亮身份：仅猎人不被毒时亮身份证明开枪权 ──
+        reveal_role = (
+            self.player_roles.get(p) == "猎人" and cause != "poison"
+        )
+
+        # ── 死亡播报 ──
+        self._show_death_reveal(p, cause, reveal_role=reveal_role)
 
         cause_map = {
             "wolf": "被狼人杀害",
@@ -1023,7 +1041,10 @@ class WerewolfGame:
             "unknown": "死亡"
         }
         cause_text = cause_map.get(cause, "死亡")
-        self.history.append(f"【系统】玩家 {p} {cause_text}（身份：{self.player_roles[p]}）。")
+        if reveal_role:
+            self.history.append(f"【系统】玩家 {p} {cause_text}（身份：{self.player_roles[p]}）。")
+        else:
+            self.history.append(f"【系统】玩家 {p} {cause_text}。")
 
         if p == "U":
             self.human_alive = False
@@ -1055,7 +1076,8 @@ class WerewolfGame:
                         p, sys_prompt,
                         f"可选对象: {others}",
                         require_target=True,
-                        valid_targets=others
+                        valid_targets=others,
+                        max_tokens=300
                     )
                 self.sheriff = heir
                 console.print(f"🎖️ 警徽已传给 {get_player_label(heir)}！")
@@ -1069,13 +1091,17 @@ class WerewolfGame:
         if self.player_roles[p] == "猎人":
             if cause == "poison":
                 console.print(Panel(
-                    f"🔇 [dim]猎人 {get_player_label(p)} 被毒杀，无法开枪。[/dim]",
+                    f"🔇 [dim]{get_player_label(p)} 被毒杀，无法亮身份，不能开枪。[/dim]",
                     border_style="grey50"
                 ))
-                self.history.append(f"【系统】猎人 {p} 被毒杀，技能失效。")
+                self.history.append(f"【系统】{p} 被毒杀，猎人技能失效。")
                 return
 
-            console.print(f"\n💥 [bold red]猎人 {get_player_label(p)} 触发开枪！[/bold red]")
+            # 猎人亮身份，证明合法开枪权
+            console.print(Panel(
+                f"🔫 [bold yellow]{get_player_label(p)} 亮出猎人身份！触发开枪！[/bold yellow]",
+                border_style="yellow"
+            ))
             others = [t for t in self.alive_players]
             if not others:
                 return
@@ -1095,16 +1121,16 @@ class WerewolfGame:
                     p, sys_prompt,
                     f"存活玩家: {others}",
                     require_target=True,
-                    valid_targets=others + ["Pass"]
+                    valid_targets=others + ["Pass"],
+                    max_tokens=300
                 )
 
             if shot != "Pass" and shot in self.alive_players:
                 console.print(f"🎯 猎人一枪带走了 {get_player_label(shot)}！")
-                # ── 🔧 修复: 猎人弹道死亡播报 ──
-                self._show_death_reveal(shot, "hunter")
+                # 被猎人带走 → 不亮身份
+                self._show_death_reveal(shot, "hunter", reveal_role=False)
                 self.history.append(
-                    f"【系统】猎人 {p} 开枪带走了 {shot}"
-                    f"（身份：{self.player_roles[shot]}）。"
+                    f"【系统】猎人 {p} 开枪带走了 {shot}。"
                 )
                 self.alive_players.remove(shot)
                 if shot == "U":
@@ -1183,7 +1209,8 @@ class WerewolfGame:
                     f"可选目标: {targets}",
                     require_target=True,
                     valid_targets=targets,
-                    hide_identity=True
+                    hide_identity=True,
+                    max_tokens=300
                 )
             if killed_id and u_role == "狼人":
                 console.print("🐺 狼人选择了目标...")
@@ -1237,7 +1264,8 @@ class WerewolfGame:
                     f"可选目标: {fresh_targets} (已查过: {list(already_checked)}，不要再查)",
                     require_target=True,
                     valid_targets=fresh_targets,
-                    hide_identity=True
+                    hide_identity=True,
+                    max_tokens=300
                 )
                 if ai_check and ai_check in check_targets:
                     res = "狼人" if self.player_roles.get(ai_check) == "狼人" else "好人"
@@ -1303,7 +1331,8 @@ class WerewolfGame:
                         f"今晚被杀的是 {killed_id}。使用解药吗？",
                         require_target=True,
                         valid_targets=["Y", "N"],
-                        hide_identity=True
+                        hide_identity=True,
+                        max_tokens=300
                     )
                     if use_save == "Y":
                         if killed_id in dead_this_night:
@@ -1325,7 +1354,8 @@ class WerewolfGame:
                             f"可选毒杀目标: {poison_targets}",
                             require_target=True,
                             valid_targets=poison_targets,
-                            hide_identity=True
+                            hide_identity=True,
+                            max_tokens=300
                         )
                         if poison != "Pass" and poison in poison_targets:
                             dead_this_night.append(poison)
@@ -1458,7 +1488,8 @@ class WerewolfGame:
                     p, sys_prompt,
                     f"请从候选人中投票: {v_targets}",
                     require_target=True,
-                    valid_targets=v_targets
+                    valid_targets=v_targets,
+                    max_tokens=300
                 )
 
             if v != "Pass" and v in votes:
