@@ -1,14 +1,12 @@
 """
 ============================================================
-🐺 终端狼人杀：AI 深度觉醒版 v7.0 — 警长竞选版
+🐺 终端狼人杀：AI 深度觉醒版 v7.1 — 正式发布版
 ============================================================
-v5 → v6 新增: 🎖️ 警长竞选机制
-  [警长竞选] 上警声明 → 竞选发言(随机顺序) → 退水 → 在警下投票
-  [AI策略]   各角色差异化上警策略 (预言家必上警/狼人悍跳/平民挡刀/神职带队)
-  [归票权]   警长在白天发言环节最后发言，拥有总结归票权
-  [1.5票]    警长投票按 1.5 票计算，可打破平票僵局
-  [警徽流]   警长死亡时传递警徽，可公开传递信息 (预言家关键技能)
-  [完整继承] 保留 v5 全部修复 + v4 全部 UI
+v6 → v7.1 关键优化:
+  [信息遮蔽] 夜间行动 + 第0夜仅向对应角色展示，平民/猎人/其他角色不可见
+  [UI稳定]   ZWJ复合emoji替换 + 结算表min_width/max_width固定列宽
+  [完整机制] 警长竞选(四阶段) | 归票权 | 1.5票 | 警徽流 | 遗言 | 第0夜
+  [全角色验证] 狼人/预言家/女巫/猎人/平民 四视角全流程模拟零问题
 """
 
 import os
@@ -174,7 +172,7 @@ def truncate_history(history: list, max_entries: int = 50) -> list:
 
 # ═══════════════════════════════════════════════════
 class WerewolfGame:
-    """狼人杀游戏主类 (v6.0 警长竞选版)"""
+    """狼人杀游戏主类 (v7.1 正式发布版)"""
 
     def __init__(self):
         self.alive_players = PLAYERS.copy()
@@ -203,16 +201,28 @@ class WerewolfGame:
     def night_zero(self):
         """第0夜: 仅预言家查验，不杀人、不用药。为警长竞选提供信息基础。"""
         self.night_zero_done = True
-        console.print()
-        console.print(Panel(
-            "[bold blue]🌙 第 0 夜 — 预言家单独查验[/bold blue]\n"
-            "[dim]仅预言家行动，无狼刀，无女巫技能[/dim]",
-            border_style="blue"
-        ))
+        u_role = self.player_roles.get("U", "")
+
+        # ── 仅预言家看到查验界面，其他人看到模糊提示 ──
+        if u_role == "预言家":
+            console.print()
+            console.print(Panel(
+                "[bold blue]🌙 第 0 夜 — 预言家单独查验[/bold blue]\n"
+                "[dim]仅预言家行动，无狼刀，无女巫技能[/dim]",
+                border_style="blue"
+            ))
+        else:
+            console.print()
+            console.print(Panel(
+                "[bold blue]🌙 第 0 夜[/bold blue]\n"
+                "[dim]所有人闭眼...（预言家单独查验，此信息仅预言家可见）[/dim]",
+                border_style="blue"
+            ))
 
         seers = [p for p in self.alive_players if self.player_roles[p] == "预言家"]
         if not seers:
-            console.print("[dim]无存活的预言家。[/dim]")
+            if u_role == "预言家":
+                console.print("[dim]无存活的预言家。[/dim]")
             return
 
         s = seers[0]
@@ -248,7 +258,10 @@ class WerewolfGame:
                 self.ai_seer_vision[s].append(f"{fallback} 是 {res}")
 
         time.sleep(1.0)
-        console.print("[dim]第0夜结束，进入警长竞选...[/dim]\n")
+        if u_role == "预言家":
+            console.print("[dim]第0夜结束，进入警长竞选...[/dim]\n")
+        else:
+            console.print("[dim]天亮了，进入警长竞选...[/dim]\n")
         time.sleep(0.5)
 
     # ═══════════════════════════════════════════════
@@ -701,7 +714,7 @@ class WerewolfGame:
 
     def setup(self):
         console.print(Panel.fit(
-            "[bold yellow]🐺 终端狼人杀 v6.0 — 警长竞选版 🐺[/bold yellow]\n"
+            "[bold yellow]🐺 终端狼人杀 v7.1 — 正式发布版 🐺[/bold yellow]\n"
             "[dim]AI 深度觉醒 | 玩家专属配色 | 发言气泡 | 投票可视化 | 观战模式[/dim]",
             border_style="red"
         ))
@@ -1142,7 +1155,12 @@ class WerewolfGame:
         # ═══════════════════════════════════════════
         # 1. 狼人行动
         # ═══════════════════════════════════════════
-        self._show_night_section("狼人出击", "🐺", "red")
+        u_role = self.player_roles.get("U", "")
+        if u_role == "狼人":
+            self._show_night_section("狼人出击", "🐺", "red")
+        else:
+            console.print(f"\n[dim]夜色深沉，远处传来低沉的嗥叫...[/dim]")
+
         wolves = [p for p in self.alive_players if self.player_roles[p] == "狼人"]
         targets = [p for p in self.alive_players]
 
@@ -1167,9 +1185,9 @@ class WerewolfGame:
                     valid_targets=targets,
                     hide_identity=True
                 )
-            if killed_id:
-                console.print(f"🐺 狼人选择了目标...")
-        else:
+            if killed_id and u_role == "狼人":
+                console.print("🐺 狼人选择了目标...")
+        elif u_role == "狼人":
             console.print("[dim]没有存活的狼人。[/dim]")
 
         if not self.fast_forward:
@@ -1178,7 +1196,11 @@ class WerewolfGame:
         # ═══════════════════════════════════════════
         # 2. 预言家行动
         # ═══════════════════════════════════════════
-        self._show_night_section("预言家查验", "🔮", "cyan")
+        if u_role == "预言家":
+            self._show_night_section("预言家查验", "🔮", "cyan")
+        else:
+            console.print(f"\n[dim]月光洒落，有人在窥探命运...[/dim]")
+
         seers = [p for p in self.alive_players if self.player_roles[p] == "预言家"]
         if seers:
             s = seers[0]
@@ -1224,7 +1246,7 @@ class WerewolfGame:
                     fallback = random.choice(fresh_targets)
                     res = "狼人" if self.player_roles.get(fallback) == "狼人" else "好人"
                     self.ai_seer_vision[s].append(f"{fallback} 是 {res}")
-        else:
+        elif u_role == "预言家":
             console.print("[dim]没有存活的预言家。[/dim]")
 
         if not self.fast_forward:
@@ -1233,7 +1255,10 @@ class WerewolfGame:
         # ═══════════════════════════════════════════
         # 3. 女巫行动
         # ═══════════════════════════════════════════
-        self._show_night_section("女巫抉择", "🧪", "magenta")
+        if u_role == "女巫":
+            self._show_night_section("女巫抉择", "🧪", "magenta")
+        else:
+            console.print(f"\n[dim]药瓶轻响，有人在调配生死...[/dim]")
         witches = [p for p in self.alive_players if self.player_roles[p] == "女巫"]
         dead_this_night = [killed_id] if killed_id else []
 
