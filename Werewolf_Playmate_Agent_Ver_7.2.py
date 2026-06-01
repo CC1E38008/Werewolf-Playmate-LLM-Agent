@@ -1,13 +1,10 @@
 """
 ============================================================
-🐺 终端狼人杀：AI 深度觉醒版 v7.2 — 正式发布版
+🐺 终端狼人杀：AI 深度觉醒版 v7.3 — 正式发布版
 ============================================================
-v7.1 → v7.2:
-  [身份隐藏] 仅猎人出局(非毒)亮身份证明开枪权，其余死因一律隐藏身份
-  [发言tokens] 技能调用 max_tokens=300，发言/遗言/竞选 600
-  [完整机制] 警长竞选 | 归票权 | 1.5票 | 警徽流 | 遗言 | 第0夜 | 夜间遮蔽
-  [全角色验证] 狼人/预言家/女巫/猎人/平民 五视角零问题
-  [UI稳定]   emoji兼容 | 结算表定宽 | 发言气泡
+v7.2 → v7.3:
+  [遗言修复] AI遗言prompt注入死因(狼杀/票死)，不再混淆自己的死亡方式
+  [发言tokens] 发言/遗言/竞选 max_tokens=3000，技能调用保持300
 """
 
 import os
@@ -173,7 +170,7 @@ def truncate_history(history: list, max_entries: int = 50) -> list:
 
 # ═══════════════════════════════════════════════════
 class WerewolfGame:
-    """狼人杀游戏主类 (v7.2 正式发布版)"""
+    """狼人杀游戏主类 (v7.3 正式发布版)"""
 
     def __init__(self):
         self.alive_players = PLAYERS.copy()
@@ -726,7 +723,7 @@ class WerewolfGame:
 
     def setup(self):
         console.print(Panel.fit(
-            "[bold yellow]🐺 终端狼人杀 v7.2 — 正式发布版 🐺[/bold yellow]\n"
+            "[bold yellow]🐺 终端狼人杀 v7.3 — 正式发布版 🐺[/bold yellow]\n"
             "[dim]AI 深度觉醒 | 玩家专属配色 | 发言气泡 | 投票可视化 | 观战模式[/dim]",
             border_style="red"
         ))
@@ -862,7 +859,7 @@ class WerewolfGame:
         self, player: str, system_prompt: str, user_prompt: str,
         require_target: bool = False, valid_targets: list = None,
         hide_identity: bool = False, timeout: int = 120,
-        max_tokens: int = 600
+        max_tokens: int = 3000
     ):
         config = self.ai_llm_configs[player]
         client = OpenAI(api_key=config["key"], base_url=config["url"])
@@ -1013,8 +1010,9 @@ class WerewolfGame:
                     allow_commands=False
                 )
             else:
+                death_reason = {"wolf": "你被狼人杀害", "vote": "你被投票放逐"}.get(cause, "你即将死亡")
                 sys_prompt = (
-                    "你即将死亡，这是你最后的发言机会。请留下遗言。"
+                    f"{death_reason}，这是你最后的发言机会。请留下遗言。"
                     "你可以揭露信息、指认狼人、或给队友提示。"
                     "不要暴露你作为AI的身份。"
                 )
