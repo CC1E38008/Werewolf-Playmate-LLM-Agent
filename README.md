@@ -42,10 +42,13 @@
 📄 开源协议
 本项目基于 MIT License 开源。请自由享受代码的乐趣！
 
+
 关于Ver.7.5:
-0. 对于某些无法关闭thinking的LLM进行代码修改；
-1. strip_thinking() 纯文本思考头拦截;
-2. identity_prefix System Prompt进行了强化；
+
+0.  对于某些无法关闭thinking的LLM进行代码修改；
+1.  strip_thinking() 纯文本思考头拦截;
+2.  identity_prefix System Prompt进行了强化；
+
 
 🛠️ 安装与运行
 
