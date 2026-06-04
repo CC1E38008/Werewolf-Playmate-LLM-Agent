@@ -1,10 +1,13 @@
 """
 ============================================================
-🐺 终端狼人杀：AI 深度觉醒版 v7.3 — 正式发布版
+🐺 终端狼人杀：AI 深度觉醒版 v7.5 — 正式发布版
 ============================================================
-v7.2 → v7.3:
-  [遗言修复] AI遗言prompt注入死因(狼杀/票死)，不再混淆自己的死亡方式
+v7.3 → v7.5:
+  [思考过滤] 纯文本思考头拦截(Thinking Process/Analyze/Self-Correction) + 截断到游戏发言
+  [System Prompt] 强制要求直接输出发言，禁止附加思考过程
   [发言tokens] 发言/遗言/竞选 max_tokens=3000，技能调用保持300
+  [身份隐藏] 仅猎人出局(非毒)亮身份证明开枪权，其余死因一律隐藏
+  [遗言修复] AI遗言prompt注入死因(狼杀/票死)，不再混淆死亡方式
 """
 
 import os
@@ -124,13 +127,51 @@ THINK_XML_PATTERN = re.compile(
 )
 THINK_PATTERN = re.compile(r'</?think(?:ing)?>', re.IGNORECASE)
 
+# 纯文本思考头：**Thinking Process:** / 1. **Analyze...** / **(Self-Correction)** 等
+PLAIN_THINK_START = re.compile(
+    r'^\s*(\*{1,2}Thinking\s*Process:?\*{1,2}'
+    r'|\*{1,2}思考过程[：:]\*{1,2}'
+    r'|\d+\.\s*\*{1,2}Analyze\s+the\s+(?:Request|Situation)'
+    r'|\(Self-Correction\)'
+    r'|\*{1,2}Self-Correction\*{1,2})',
+    re.IGNORECASE | re.MULTILINE
+)
+# 删掉从思考头到第一个游戏发言之间的全部内容
+SPEECH_START = re.compile(
+    r'(?:我是\s*[A-HU]|大家好|各位[好玩家]|听了[到过]|'
+    r'我(?:觉得|认为|想|来|投)|'
+    r'玩家\s*[A-HU]|'
+    r'I\s+am\s+[A-HU]\b|'       # "I am G" 而非 "I am Witch"
+    r'Hello\s+[A-HU]\b|'
+    r'现在|首先|先|那[我我]|'
+    r'我也|我也[想来]|'
+    r'这边|这局|这把|这轮)',
+    re.IGNORECASE
+)
+
 
 def strip_thinking(content: str) -> str:
+    """清理 LLM 输出中的思考内容。适配 XML 标签 + 纯文本思考格式。"""
     if not content:
         return content
+
+    # 1. 移除 <think>...</think> 等 XML 标签
     content = THINK_TAG_PATTERN.sub('', content)
     content = THINK_XML_PATTERN.sub('', content)
     content = THINK_PATTERN.sub('', content)
+
+    # 2. 纯文本思考头拦截：如果开头是思考格式，截到第一个游戏发言
+    match = PLAIN_THINK_START.search(content)
+    if match and match.start() < 50:  # 思考头在前50字符内
+        # 找第一个游戏发言位置
+        speech = SPEECH_START.search(content)
+        if speech:
+            content = content[speech.start():]
+
+    # 3. 安全兜底：截完后如果还是思考格式开头 → 清空触发兜底
+    if content and PLAIN_THINK_START.match(content):
+        content = ""
+
     return content.strip()
 
 
@@ -170,7 +211,7 @@ def truncate_history(history: list, max_entries: int = 50) -> list:
 
 # ═══════════════════════════════════════════════════
 class WerewolfGame:
-    """狼人杀游戏主类 (v7.3 正式发布版)"""
+    """狼人杀游戏主类 (v7.5 正式发布版)"""
 
     def __init__(self):
         self.alive_players = PLAYERS.copy()
@@ -723,7 +764,7 @@ class WerewolfGame:
 
     def setup(self):
         console.print(Panel.fit(
-            "[bold yellow]🐺 终端狼人杀 v7.3 — 正式发布版 🐺[/bold yellow]\n"
+            "[bold yellow]🐺 终端狼人杀 v7.5 — 正式发布版 🐺[/bold yellow]\n"
             "[dim]AI 深度觉醒 | 玩家专属配色 | 发言气泡 | 投票可视化 | 观战模式[/dim]",
             border_style="red"
         ))
@@ -895,7 +936,7 @@ class WerewolfGame:
             f"{vision_info}\n"
             f"【核心目标】: 你需要在赢游戏的前提下帮助友方玩家，"
             f"如果需要你可以适当演戏、伪装、撒谎。你的唯一目标是尽快获得游戏胜利。\n"
-            f"【重要规则】: 绝对不要在你的输出中暴露你的身份、角色、或任何推理过程。"
+            f"【重要规则】: 直接输出发言，绝对不要在你的输出中暴露你的身份、角色、或任何推理过程，不要在前面附加思考过程或分析步骤。"
             f"你的发言必须像一个真正的人类玩家，不要使用'作为AI'、'我认为我应该'这类暴露身份的措辞。"
         )
         full_sys_prompt = f"{identity_prefix}\n{system_prompt}"
